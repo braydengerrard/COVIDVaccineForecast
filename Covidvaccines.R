@@ -12,6 +12,8 @@ options(scipen=1000)
 Share <- read.csv("share-people-vaccinated-covid.csv")
 Share$Day <- as.Date(Share$Day, format = "%Y-%m-%d")
 USA <- subset(Share, Code == "USA")
+
+#Adjusts data to remove children and 30% of adults
 USA$Adjusted <- ((USA$people_vaccinated_per_hundred/0.764)/0.7)/100
 Day <- seq(as.Date("2020-12-01"), as.Date("2021-03-15"), by="days")
 US <- as.data.frame(Day)
