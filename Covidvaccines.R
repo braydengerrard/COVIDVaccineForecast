@@ -14,7 +14,7 @@ Share$Day <- as.Date(Share$Day, format = "%Y-%m-%d")
 USA <- subset(Share, Code == "USA")
 
 #Adjusts data to remove children and 30% of adults
-USA$Adjusted <- ((USA$people_vaccinated_per_hundred/0.764)/0.7)/100
+USA$Adjusted <- ((USA$people_vaccinated_per_hundred/0.816)/0.7)/100
 Day <- seq(as.Date("2020-12-01"), as.Date("2021-03-15"), by="days")
 US <- as.data.frame(Day)
 US <- merge(US,USA,all.x=T) 
@@ -49,13 +49,18 @@ ggsave("VaccineLog.png", type = "cairo-png", height = 5, width = 9.19)
 Day <- seq(as.Date("2020-12-20"), as.Date("2021-03-15"), by="days")
 US <- as.data.frame(Day)
 US <- merge(US,USA,all.x=T) 
-time <- 0:279
+time <- 0:85
 time <- as.data.frame(time)
-US <- merge(US,time,all.y=T) 
+US$time <- time$time
+
+#Calculate max population
+(1-0.1874)*0.7
+US$Adjusted <- US$people_vaccinated_per_hundred/100
+
 
 #Transform data, a=lower bound, b=upper bound, x= y variable
 f <- function (x, a, b) log((x - a) / (b - x))
-US$Trans <- f(US$Adjusted, 0, 1)
+US$Trans <- f(US$Adjusted, 0, 0.56882)
 US$weekday <- as.factor(weekdays(as.Date(US$Day)))
 US$weekday <- as.integer(factor(US$weekday, levels = c("Monday", "Tuesday", "Wednesday", 
                           "Thursday", "Friday", "Saturday", "Sunday"),
@@ -65,7 +70,18 @@ weekday <- rep(c(7,1,2,3,4,5,6), times = 40)
 weekday <- as.data.frame(weekday)
 
 #Fit the model
+time <- 0:85
 gam_m <- gam(Trans ~  s(weekday, bs='cc', k=7) + s(time), method = "REML", data=US)
+
+Day <- seq(as.Date("2020-12-20"), as.Date("2021-09-25"), by="days")
+predict <- as.data.frame(Day)
+predict <- merge(predict,USA,all.x=T)
+US$Adjusted <- (US$people_vaccinated_per_hundred/100)
+US$Trans <- f(US$Adjusted, 0, 0.56882)
+time <- 0:279
+time <- as.data.frame(time)
+US$time <- time$time
+
 #Create predictions
 p <- predict(gam_m, data.frame(time = time, weekday = weekday), type = "link", se.fit = TRUE)
 US$Predtrans <- predict(gam_m, data.frame(time = time, weekday = weekday))
@@ -87,10 +103,10 @@ New <- as.data.frame(Date)
 
 #Transform the data back to original form
 finv <- function (x, a, b) (b * exp(x) + a) / (exp(x) + 1)
-New$Actual <- finv(US$Trans, 0, 1)
-New$Predicted <- finv(US$Predtrans, 0, 1)
-New$upr <- finv(US$upr, 0, 1)
-New$lwr <- finv(US$lwr, 0, 1)
+New$Actual <- finv(US$Trans, 0, 0.56882)
+New$Predicted <- finv(US$Predtrans, 0, 0.56882)
+New$upr <- finv(US$upr, 0, 0.56882)
+New$lwr <- finv(US$lwr, 0, 0.56882)
 
 #Plot the forecast
 par(mfrow = c(1,1))
@@ -100,7 +116,7 @@ ggplot(New, aes(x=Date, y=Predicted)) +
   geom_line(color="blue", size=1) +
   theme_ipsum_rc(grid="Y") +
   geom_ribbon(aes(ymin=lwr, ymax=upr, x=Date, fill="band"), alpha=0.3, fill="deepskyblue") +
-  scale_y_continuous(label=scales::percent) +
+  scale_y_continuous(label=scales::percent, limits=c(0,1)) +
   labs(y = "Vaccinated",
        title = "Forecast of US Vaccination",
        subtitle = "Generalized Additive Model") +
@@ -114,3 +130,4 @@ New$Residuals <- New$Actual-New$Predicted
 
 #plotting the residuals against actual values
 plot(New$Actual,New$Residuals)
+
